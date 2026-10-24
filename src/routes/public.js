@@ -34,6 +34,19 @@ router.get('/overview', async (_req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// সনদের QR scan করলে homepage এই API দিয়ে যাচাই করে। শুধু নাম/পিতার নাম/তারিখ — NID, মোবাইল যায় না।
+router.get('/verify/agriculture/:no', async (req, res, next) => {
+  try {
+    const no = String(req.params.no || '');
+    if (!/^\d{17}$/.test(no)) return res.status(404).json({ valid: false });
+    const { rows } = await pool.query(
+      'SELECT applicant_name, father_name, created_at FROM agri_certificates WHERE cert_no = $1 AND deleted_at IS NULL', [no]
+    );
+    if (!rows[0]) return res.status(404).json({ valid: false });
+    res.json({ valid: true, certNo: no, name: rows[0].applicant_name, fatherName: rows[0].father_name, issuedAt: rows[0].created_at });
+  } catch (err) { next(err); }
+});
+
 // Homepage-er shob text (admin "ইউপি সেটিংস" theke edit kora)
 router.get('/site', async (_req, res, next) => {
   try {

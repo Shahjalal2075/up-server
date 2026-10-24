@@ -76,3 +76,8 @@ Notun icon: `src/config/siteDefaults.js`-er `ICON_KEYS`-e add koro.
 1. https://imgbb.com -e account khulo → https://api.imgbb.com/ theke **Get API key**.
 2. Local `.env` ar Render Environment Variables-e `IMGBB_API_KEY` boshao.
 Key na thakle upload button error dey; tokhon chobir link bosiye kaj chalano jay.
+
+## Agri certificate API (`/api/agri-certificates`)
+`GET /?page=&q=` (২০ টি করে) · `GET /lookup?q=` (সনদ নং/NID/মোবাইল) · `GET /:id` · `POST /` · `DELETE /:id` (soft delete)
+Public: `GET /api/public/verify/agriculture/:certNo` (QR যাচাই; শুধু নাম/পিতার নাম/তারিখ)
+**Notun table-er jonno `npm run db:init` abar chalao.**

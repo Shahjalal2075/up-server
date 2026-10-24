@@ -54,6 +54,7 @@ export function sanitizeSite(b) {
   const hi = obj(b.history ?? {}, 'ইতিহাস');
   const geo = obj(b.geo ?? {}, 'ভৌগলিক তথ্য');
   const en = obj(b.entrepreneur ?? {}, 'উদ্যোক্তা');
+  const ce = obj(b.certificate ?? {}, 'সনদ');
 
   return {
     unionName: str(b.unionName, 'ইউনিয়নের নাম', 100, { required: true }),
@@ -95,6 +96,16 @@ export function sanitizeSite(b) {
       title: str(s?.title, 'সেবার নাম', 60),
       text: str(s?.text, 'সেবার বিবরণ', 200),
     })).filter((s) => s.title),
+    certificate: {
+      upazila: str(ce.upazila, 'উপজেলা', 60),
+      district: str(ce.district, 'জেলা', 60),
+      unionShort: str(ce.unionShort, 'ইউনিয়নের সংক্ষিপ্ত নাম', 80),
+      website: str(ce.website, 'সনদের ওয়েবসাইট লেখা', 120),
+      verifyUrl: url(ce.verifyUrl, 'যাচাইয়ের ওয়েবসাইট লিংক'),
+      statement: str(ce.statement, 'সনদের ঘোষণা বাক্য', 300),
+      slogan: str(ce.slogan, 'সনদের স্লোগান', 150),
+      credit: str(ce.credit, 'ক্রেডিট লাইন', 100),
+    },
     projectsNote: str(b.projectsNote, 'প্রকল্পের নোট', 300),
     projects: list(b.projects ?? [], 'প্রকল্প', 15, (p) => ({ icon: icon(p?.icon), title: str(p?.title, 'প্রকল্পের নাম', 80) })).filter((p) => p.title),
     entrepreneur: {

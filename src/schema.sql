@@ -71,3 +71,27 @@ CREATE TABLE IF NOT EXISTS mosques (
   updated_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE UNIQUE INDEX IF NOT EXISTS mosques_name_ward_village_uq ON mosques (LOWER(name), ward_no, LOWER(village_name));
+
+-- কৃষি প্রত্যয়নপত্র (সনদ আবেদন). Delete = soft delete (deleted_at)
+CREATE TABLE IF NOT EXISTS agri_certificates (
+  id                SERIAL PRIMARY KEY,
+  cert_no           VARCHAR(20) UNIQUE NOT NULL,
+  applicant_name    VARCHAR(150) NOT NULL,
+  father_name       VARCHAR(150) NOT NULL,
+  mother_name       VARCHAR(150) NOT NULL,
+  spouse_name       VARCHAR(150),
+  birth_date        DATE NOT NULL,
+  marital_status    VARCHAR(30) NOT NULL,
+  mobile            VARCHAR(15) NOT NULL,
+  nid               VARCHAR(20),
+  brn               VARCHAR(25),
+  post_office       VARCHAR(100),
+  current_address   JSONB NOT NULL,
+  permanent_address JSONB NOT NULL,
+  created_by        INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at        TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS agri_cert_nid_idx ON agri_certificates (nid);
+CREATE INDEX IF NOT EXISTS agri_cert_mobile_idx ON agri_certificates (mobile);
+CREATE INDEX IF NOT EXISTS agri_cert_created_idx ON agri_certificates (created_at DESC);

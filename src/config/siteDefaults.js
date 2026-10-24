@@ -69,6 +69,18 @@ export const SITE_DEFAULTS = {
     { icon: 'Banknote', title: 'হোল্ডিং ট্যাক্স', text: 'বকেয়া যাচাই ও সহজে ট্যাক্স পরিশোধের তথ্য।' },
   ],
 
+  // সনদ/প্রত্যয়নপত্রের তথ্য। {name} = আবেদনকারীর নাম। verifyUrl ফাঁকা থাকলে এই সাইটের ঠিকানা বসবে।
+  certificate: {
+    upazila: 'ফকিরহাট',
+    district: 'বাগেরহাট',
+    unionShort: 'বাহিরদিয়া-মানসা',
+    website: 'bahirdiamansa.upsheba.com',
+    verifyUrl: '',
+    statement: 'উক্ত {name} একজন কৃষিশিল্পী/কৃষক। ইহা আমার জানা মতে সত্য।',
+    slogan: 'স্মার্ট ফকিরহাট বিনির্মাণে আপনার সহযোগিতা একান্ত কাম্য',
+    credit: '',
+  },
+
   projectsNote: 'ইউনিয়নের উন্নয়নমূলক কাজের বিবরণ ও অগ্রগতি শীঘ্রই এখানে প্রকাশিত হবে।',
   projects: [
     { icon: 'Route', title: 'রাস্তা ও অবকাঠামো' },

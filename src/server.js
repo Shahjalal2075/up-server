@@ -10,6 +10,7 @@ import villageRoutes from './routes/villages.js';
 import mosqueRoutes from './routes/mosques.js';
 import publicRoutes from './routes/public.js';
 import siteRoutes from './routes/site.js';
+import agriRoutes from './routes/agriCertificates.js';
 
 for (const key of ['DATABASE_URL', 'JWT_SECRET']) {
   if (!process.env[key]) {
@@ -52,6 +53,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/settings', siteRoutes);
+app.use('/api/agri-certificates', agriRoutes);
 app.use('/api/villages', villageRoutes);
 app.use('/api/mosques', mosqueRoutes);
 
