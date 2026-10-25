@@ -34,7 +34,7 @@ router.get('/overview', async (_req, res, next) => {
   } catch (err) { next(err); }
 });
 
-// সনদের QR scan করলে homepage এই API দিয়ে যাচাই করে। শুধু নাম/পিতার নাম/তারিখ — NID, মোবাইল যায় না।
+// সনদের QR scan করলে homepage এই API দিয়ে যাচাই করে। শুধু নাম/তারিখ — NID, মোবাইল যায় না।
 router.get('/verify/agriculture/:no', async (req, res, next) => {
   try {
     const no = String(req.params.no || '');
@@ -44,6 +44,45 @@ router.get('/verify/agriculture/:no', async (req, res, next) => {
     );
     if (!rows[0]) return res.status(404).json({ valid: false });
     res.json({ valid: true, certNo: no, name: rows[0].applicant_name, fatherName: rows[0].father_name, issuedAt: rows[0].created_at });
+  } catch (err) { next(err); }
+});
+
+router.get('/verify/citizen/:no', async (req, res, next) => {
+  try {
+    const no = String(req.params.no || '');
+    if (!/^\d{17}$/.test(no)) return res.status(404).json({ valid: false });
+    const { rows } = await pool.query(
+      'SELECT applicant_name, father_name, created_at FROM citizen_certificates WHERE cert_no = $1 AND deleted_at IS NULL', [no]
+    );
+    if (!rows[0]) return res.status(404).json({ valid: false });
+    res.json({ valid: true, certNo: no, name: rows[0].applicant_name, fatherName: rows[0].father_name, issuedAt: rows[0].created_at });
+  } catch (err) { next(err); }
+});
+
+router.get('/verify/trade/:no', async (req, res, next) => {
+  try {
+    const no = String(req.params.no || '');
+    if (!/^[A-Za-z0-9/-]{1,17}$/.test(no)) return res.status(404).json({ valid: false });
+    const { rows } = await pool.query(
+      `SELECT business_name, owner_name, to_char(expiry_date, 'YYYY-MM-DD') AS expiry_date,
+              (expiry_date IS NOT NULL AND expiry_date < (NOW() AT TIME ZONE 'Asia/Dhaka')::date) AS expired
+       FROM trade_licenses WHERE cert_no = $1 AND deleted_at IS NULL`, [no]
+    );
+    if (!rows[0]) return res.status(404).json({ valid: false });
+    res.json({ valid: true, certNo: no, businessName: rows[0].business_name, ownerName: rows[0].owner_name,
+      expiryDate: rows[0].expiry_date || '', expired: rows[0].expired });
+  } catch (err) { next(err); }
+});
+
+router.get('/verify/warish/:no', async (req, res, next) => {
+  try {
+    const no = String(req.params.no || '');
+    if (!/^\d{17}$/.test(no)) return res.status(404).json({ valid: false });
+    const { rows } = await pool.query(
+      'SELECT deceased_name, applicant_name, created_at FROM warish_certificates WHERE cert_no = $1 AND deleted_at IS NULL', [no]
+    );
+    if (!rows[0]) return res.status(404).json({ valid: false });
+    res.json({ valid: true, certNo: no, deceasedName: rows[0].deceased_name, applicantName: rows[0].applicant_name, issuedAt: rows[0].created_at });
   } catch (err) { next(err); }
 });
 

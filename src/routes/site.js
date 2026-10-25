@@ -21,6 +21,9 @@ export async function loadSite() {
   let saved = {};
   try { saved = JSON.parse(m.site_content || '{}'); } catch { /* bhanga json hole default */ }
   const site = deepMerge(SITE_DEFAULTS, saved);
+  // আগে save করা মেনুতে লিংক ফাঁকা থাকলে (পেজ তৈরির আগে) ডিফল্ট লিংক বসাই
+  const defUrl = Object.fromEntries(SITE_DEFAULTS.serviceMenu.map((m) => [m.label, m.url]));
+  site.serviceMenu = (site.serviceMenu || []).map((m) => (m.url ? m : { ...m, url: defUrl[m.label] || '' }));
   if (m.union_name) site.unionName = m.union_name;
   return site;
 }

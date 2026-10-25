@@ -81,3 +81,29 @@ Key na thakle upload button error dey; tokhon chobir link bosiye kaj chalano jay
 `GET /?page=&q=` (২০ টি করে) · `GET /lookup?q=` (সনদ নং/NID/মোবাইল) · `GET /:id` · `POST /` · `DELETE /:id` (soft delete)
 Public: `GET /api/public/verify/agriculture/:certNo` (QR যাচাই; শুধু নাম/পিতার নাম/তারিখ)
 **Notun table-er jonno `npm run db:init` abar chalao.**
+
+## Warish certificate API (`/api/warish-certificates`)
+Agri-r moto-i (`GET /`, `/lookup`, `/:id`, `POST /`, `DELETE /:id`). Common logic: `src/routes/certRouter.js`.
+Public: `GET /api/public/verify/warish/:certNo`. **`npm run db:init` abar chalao** (notun table).
+
+## Citizen certificate API (`/api/citizen-certificates`)
+Agri-r moto-i; shared config `src/routes/personCert.js`. Public: `GET /api/public/verify/citizen/:certNo`.
+**`npm run db:init` abar chalao** (notun table `citizen_certificates`).
+
+## Trade license API (`/api/trade-licenses`)
+Same CRUD (`certRouter.js`); `cert_no` = license no (hate dile oi no, fanka hole auto). Public: `GET /api/public/verify/trade/:no`.
+**`npm run db:init` abar chalao** (notun table `trade_licenses`).
+
+## Public apply API (`/api/apply/<agri|citizen|warish|trade>`)
+`POST /` (আবেদন জমা, login লাগে না; IP প্রতি ঘণ্টায় ৬০) · `GET /view/:key` (নিজের সনদ) · `GET /lookup?q=<সনদ নং>` (trade-e nei)
+Admin API (`/api/<type>`) ager moto — list/search/delete shudhu Super Admin & Admin.
+Duplicate: `dupChecks` (NID/BRN/mobile) — 409 dey. **`npm run db:init` abar chalao** (public_key + unique index).
+
+## Holdings API (`/api/holdings`)
+`GET /?page=&q=` · `GET /:id` (সবাই যারা holdings page পায়) · `POST /`, `PUT /:id` (Super Admin, Admin, Moderator) · `DELETE /:id` (Super Admin, Admin; soft delete)
+Holding no unique (active row-er moddhe). **`npm run db:init` abar chalao** (holdings table-e notun column).
+
+## Dashboard API
+`GET /api/dashboard/stats` (Super Admin, Admin, Accounting) · `/my-activity[?date=]` (Moderator) · `/team?from=&to=&sort=count|name|recent&order=asc|desc` (Super Admin, Admin) · `/printer` (Printer)
+Holdings: Moderator shudhu `created_by = nijer id` row dekhe. Print/download count: `POST /api/holdings/:id/events` → `holding_events` table.
+Din-er hishab Asia/Dhaka time-e. **`npm run db:init` abar chalao** (holding_events table).

@@ -55,6 +55,7 @@ export function sanitizeSite(b) {
   const geo = obj(b.geo ?? {}, 'ভৌগলিক তথ্য');
   const en = obj(b.entrepreneur ?? {}, 'উদ্যোক্তা');
   const ce = obj(b.certificate ?? {}, 'সনদ');
+  const pl = obj(b.plate ?? {}, 'নম্বর প্লেট');
 
   return {
     unionName: str(b.unionName, 'ইউনিয়নের নাম', 100, { required: true }),
@@ -105,6 +106,26 @@ export function sanitizeSite(b) {
       statement: str(ce.statement, 'সনদের ঘোষণা বাক্য', 300),
       slogan: str(ce.slogan, 'সনদের স্লোগান', 150),
       credit: str(ce.credit, 'ক্রেডিট লাইন', 100),
+      citizenStatement: str(ce.citizenStatement, 'নাগরিক সনদের ঘোষণা', 500),
+      officerName: str(ce.officerName, 'কর্মকর্তার নাম', 80),
+      officerTitle: str(ce.officerTitle, 'কর্মকর্তার পদবি', 80),
+      tradeText: str(ce.tradeText, 'ট্রেড লাইসেন্সের বাক্য', 600),
+      warishResident: str(ce.warishResident, 'ওয়ারিশ সনদের বাক্য', 400),
+      warishPrayer: str(ce.warishPrayer, 'ওয়ারিশ সনদের দোয়া', 300),
+      warishNote: str(ce.warishNote, 'ওয়ারিশ সনদের বিঃদ্রঃ', 600),
+    },
+    plate: {
+      website: str(pl.website, 'প্লেটের ওয়েবসাইট', 120),
+      visitText: str(pl.visitText, 'ওয়েবসাইট ভিজিটের লেখা', 120),
+      sloganLeft: str(pl.sloganLeft, 'বাম স্লোগান', 120),
+      sloganRight: str(pl.sloganRight, 'ডান স্লোগান', 120),
+      police: str(pl.police, 'থানা', 80),
+      national: str(pl.national, 'জাতীয় সেবা', 80),
+      fire: str(pl.fire, 'ফায়ার সার্ভিস', 80),
+      health: str(pl.health, 'স্বাস্থ্য', 80),
+      electricity: str(pl.electricity, 'বিদ্যুৎ', 80),
+      footer: str(pl.footer, 'প্লেটের নিচের লাইন', 200),
+      credit: str(pl.credit, 'প্লেটের ক্রেডিট লাইন', 100),
     },
     projectsNote: str(b.projectsNote, 'প্রকল্পের নোট', 300),
     projects: list(b.projects ?? [], 'প্রকল্প', 15, (p) => ({ icon: icon(p?.icon), title: str(p?.title, 'প্রকল্পের নাম', 80) })).filter((p) => p.title),

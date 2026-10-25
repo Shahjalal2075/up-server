@@ -15,7 +15,6 @@ export const PAGE_ACCESS = {
   dashboard: ALL,
   holdings: [...FULL, ROLES.MODERATOR, ROLES.PRINTER],
   'tax-collection': FULL,
-  notices: FULL,
   'citizen-certificates': FULL,
   'trade-licenses': FULL,
   'warish-certificates': FULL,

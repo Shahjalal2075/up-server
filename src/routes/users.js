@@ -41,7 +41,7 @@ async function loadTarget(req, res) {
     return null;
   }
   const { rows } = await pool.query(`SELECT ${COLS} FROM users WHERE id = $1 AND deleted_at IS NULL`, [id]);
-  if (!rows[0]) {
+  if (!rows[0] || (rows[0].role === ROLES.SUPER_ADMIN && req.user.role !== ROLES.SUPER_ADMIN)) {
     res.status(404).json({ message: 'ইউজার খুঁজে পাওয়া যায়নি।' });
     return null;
   }
@@ -52,7 +52,11 @@ const forbid = (res) => res.status(403).json({ message: 'এই ইউজার�
 
 router.get('/', async (req, res, next) => {
   try {
-    const { rows } = await pool.query(`SELECT ${COLS} FROM users WHERE deleted_at IS NULL ORDER BY id DESC`);
+    // Admin, Super Admin-er account dekhte pay na (list-e ashe-i na)
+    const hideSuper = req.user.role !== ROLES.SUPER_ADMIN;
+    const { rows } = await pool.query(
+      `SELECT ${COLS} FROM users WHERE deleted_at IS NULL AND ($1::boolean = FALSE OR role <> 'super_admin') ORDER BY id DESC`, [hideSuper]
+    );
     res.json({ users: rows.map((u) => shape(req.user, u)) });
   } catch (err) { next(err); }
 });
