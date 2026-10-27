@@ -268,3 +268,58 @@ CREATE TABLE IF NOT EXISTS holding_events (
 CREATE INDEX IF NOT EXISTS holding_events_holding_idx ON holding_events (holding_id);
 CREATE INDEX IF NOT EXISTS holding_events_user_idx ON holding_events (user_id, created_at);
 CREATE INDEX IF NOT EXISTS holdings_creator_idx ON holdings (created_by, created_at);
+
+-- ---- মডারেটরের ডাটা এন্ট্রি চার্জ ও পেমেন্ট ----
+-- entry_fee: মডারেটর এন্ট্রি করার সময়ের চার্জ (পুরনো এন্ট্রিতে NULL = চার্জ নেই; চার্জ বদলালে আগের এন্ট্রি বদলায় না)
+ALTER TABLE holdings ADD COLUMN IF NOT EXISTS entry_fee NUMERIC(10,2);
+
+CREATE TABLE IF NOT EXISTS moderator_payments (
+  id            SERIAL PRIMARY KEY,
+  moderator_id  INTEGER NOT NULL REFERENCES users(id),
+  method        VARCHAR(10) NOT NULL CHECK (method IN ('bkash', 'nagad')),
+  to_number     VARCHAR(15) NOT NULL,   -- যে নম্বরে টাকা পাঠিয়েছে
+  sender_number VARCHAR(15) NOT NULL,   -- যে নম্বর থেকে পাঠিয়েছে
+  trx_id        VARCHAR(30) NOT NULL,
+  amount        NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+  due_at_submit NUMERIC(12,2) NOT NULL DEFAULT 0,  -- জমা দেওয়ার সময় মোট বকেয়া (কত পাঠানোর কথা ছিল)
+  status        VARCHAR(10) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  note          TEXT,
+  reviewed_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at   TIMESTAMPTZ,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+-- একই ট্রানজেকশন আইডি দিয়ে দুইবার দাবি আটকানো (বাতিল হওয়াগুলো বাদে)
+CREATE UNIQUE INDEX IF NOT EXISTS mod_pay_trx_uq ON moderator_payments (method, UPPER(trx_id)) WHERE status <> 'rejected';
+CREATE INDEX IF NOT EXISTS mod_pay_user_idx ON moderator_payments (moderator_id, status);
+CREATE INDEX IF NOT EXISTS mod_pay_status_idx ON moderator_payments (status, created_at DESC);
+
+-- ---- হোল্ডিংয়ের public_key (QR → সনদ), ট্যাক্স আদায়, মডারেটর খরচ ----
+ALTER TABLE holdings ADD COLUMN IF NOT EXISTS public_key VARCHAR(40) NOT NULL DEFAULT replace(gen_random_uuid()::text, '-', '');
+CREATE UNIQUE INDEX IF NOT EXISTS holdings_public_key_uq ON holdings (public_key);
+
+-- একটি "Mark as Paid" = এক সারি; years = ঐ বার তারা কোন কোন বছরের কর দিয়েছে
+CREATE TABLE IF NOT EXISTS tax_collections (
+  id           SERIAL PRIMARY KEY,
+  holding_id   INTEGER NOT NULL REFERENCES holdings(id),
+  years        INTEGER[] NOT NULL,
+  amount       NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+  paid_on      DATE NOT NULL,
+  collected_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS tax_col_holding_idx ON tax_collections (holding_id);
+CREATE INDEX IF NOT EXISTS tax_col_paid_idx ON tax_collections (paid_on);
+CREATE INDEX IF NOT EXISTS tax_col_created_idx ON tax_collections (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS moderator_expenses (
+  id           SERIAL PRIMARY KEY,
+  moderator_id INTEGER NOT NULL REFERENCES users(id),
+  amount       NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+  note         TEXT NOT NULL,
+  expense_date DATE NOT NULL,
+  created_by   INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  deleted_at   TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS mod_exp_date_idx ON moderator_expenses (expense_date);
+CREATE INDEX IF NOT EXISTS mod_exp_mod_idx ON moderator_expenses (moderator_id);

@@ -15,6 +15,9 @@ import warish from './routes/warishCertificates.js';
 import citizen from './routes/citizenCertificates.js';
 import trade from './routes/tradeLicenses.js';
 import holdingRoutes from './routes/holdings.js';
+import paymentRoutes from './routes/payments.js';
+import taxRoutes from './routes/tax.js';
+import expenseRoutes from './routes/expenses.js';
 
 for (const key of ['DATABASE_URL', 'JWT_SECRET']) {
   if (!process.env[key]) {
@@ -66,6 +69,9 @@ app.use('/api/apply/citizen', citizen.pub);
 app.use('/api/trade-licenses', trade.admin);
 app.use('/api/apply/trade', trade.pub);
 app.use('/api/holdings', holdingRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/tax', taxRoutes);
+app.use('/api/expenses', expenseRoutes);
 app.use('/api/villages', villageRoutes);
 app.use('/api/mosques', mosqueRoutes);
 

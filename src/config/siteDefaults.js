@@ -74,7 +74,7 @@ export const SITE_DEFAULTS = {
     upazila: 'ফকিরহাট',
     district: 'বাগেরহাট',
     unionShort: 'বাহিরদিয়া-মানসা',
-    website: 'bahirdiamansa.upsheba.com',
+    website: '', // ফাঁকা = এই সাইটের নিজের ঠিকানা বসে
     verifyUrl: '',
     statement: 'উক্ত {name} একজন কৃষিশিল্পী/কৃষক। ইহা আমার জানা মতে সত্য।',
     slogan: 'স্মার্ট ফকিরহাট বিনির্মাণে আপনার সহযোগিতা একান্ত কাম্য',
@@ -90,7 +90,7 @@ export const SITE_DEFAULTS = {
 
   // হোল্ডিং নম্বর প্লেট ও হোল্ডিং সনদের লেখা
   plate: {
-    website: 'www.bahirdiamansha.digitalup.online',
+    website: '', // ফাঁকা = এই সাইটের নিজের ঠিকানা বসে
     visitText: 'নাগরিক সেবা পেতে উপরের ওয়েবসাইট ভিজিট করুন।',
     sloganLeft: '"সঠিক সময়ে দেব কর, গড়বো ইউনিয়ন স্বনির্ভর"',
     sloganRight: '"জন্ম ও মৃত্যুর ৪৫ দিনের মধ্যে নিবন্ধন নিশ্চিত করুন"',

@@ -24,6 +24,11 @@ export async function loadSite() {
   // আগে save করা মেনুতে লিংক ফাঁকা থাকলে (পেজ তৈরির আগে) ডিফল্ট লিংক বসাই
   const defUrl = Object.fromEntries(SITE_DEFAULTS.serviceMenu.map((m) => [m.label, m.url]));
   site.serviceMenu = (site.serviceMenu || []).map((m) => (m.url ? m : { ...m, url: defUrl[m.label] || '' }));
+  // আগে save করা পুরনো ওয়েবসাইট লেখা (digitalup / upsheba) থাকলে ফাঁকা ধরি, যাতে নিজের সাইটের ঠিকানা বসে
+  const OLD = /digitalup\.online|upsheba\.com/i;
+  if (OLD.test(site.certificate?.website || '')) site.certificate.website = '';
+  if (OLD.test(site.certificate?.verifyUrl || '')) site.certificate.verifyUrl = '';
+  if (OLD.test(site.plate?.website || '')) site.plate.website = '';
   if (m.union_name) site.unionName = m.union_name;
   return site;
 }

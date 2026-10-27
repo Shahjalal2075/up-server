@@ -14,7 +14,7 @@ const FULL = [ROLES.SUPER_ADMIN, ROLES.ADMIN];
 export const PAGE_ACCESS = {
   dashboard: ALL,
   holdings: [...FULL, ROLES.MODERATOR, ROLES.PRINTER],
-  'tax-collection': FULL,
+  'tax-collection': [...FULL, ROLES.ACCOUNTING],
   'citizen-certificates': FULL,
   'trade-licenses': FULL,
   'warish-certificates': FULL,
@@ -23,6 +23,11 @@ export const PAGE_ACCESS = {
   'mosque-info': FULL,
   settings: FULL,
   users: FULL,
+  expenses: [ROLES.ACCOUNTING],
+  // খরচ হিসাব, মডারেটর হিসাব, পেমেন্ট অনুমোদন ও সেটিংস: শুধু Accounting
+  'moderator-accounts': [ROLES.ACCOUNTING],
+  'payment-approvals': [ROLES.ACCOUNTING],
+  'payment-settings': [ROLES.ACCOUNTING],
 };
 
 export const canAccess = (role, page) => !!PAGE_ACCESS[page]?.includes(role);

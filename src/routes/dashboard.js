@@ -19,17 +19,23 @@ function validDate(v) {
 // ---------- Super Admin / Admin / Accounting: ট্যাক্স ও হোল্ডিংয়ের মোট হিসাব ----------
 router.get('/stats', requireRoles('super_admin', 'admin', 'accounting'), async (_req, res, next) => {
   try {
-    const { rows } = await pool.query(`
-      SELECT COUNT(*)::int                          AS total_holdings,
-             COALESCE(SUM(annual_tax), 0)::float8   AS total_tax,
-             COALESCE(SUM(paid_amount), 0)::float8  AS collected_tax
-      FROM holdings WHERE deleted_at IS NULL`);
+    // ধার্য = প্রতি হোল্ডিংয়ের বার্ষিক কর × এন্ট্রির বছর থেকে এ বছর পর্যন্ত বছর; আদায় = tax_collections
+    const cy = Number(todayStr().slice(0, 4));
+    const { rows } = await pool.query(
+      `SELECT COUNT(*)::int AS total_holdings,
+              COALESCE(SUM(annual_tax * GREATEST(1, $1::int - EXTRACT(YEAR FROM created_at ${TZ})::int + 1)), 0)::float8 AS total_tax
+       FROM holdings WHERE deleted_at IS NULL`, [cy]
+    );
+    const col = await pool.query(
+      `SELECT COALESCE(SUM(tc.amount), 0)::float8 AS s FROM tax_collections tc JOIN holdings h ON h.id = tc.holding_id AND h.deleted_at IS NULL`
+    );
     const s = rows[0];
+    const collected = col.rows[0].s;
     res.json({
       totalHoldings: s.total_holdings,
       totalTax: s.total_tax,
-      collectedTax: s.collected_tax,
-      dueTax: Math.max(s.total_tax - s.collected_tax, 0),
+      collectedTax: collected,
+      dueTax: Math.max(s.total_tax - collected, 0),
     });
   } catch (err) { next(err); }
 });

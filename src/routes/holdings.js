@@ -5,9 +5,12 @@ import { WARD_COUNT } from '../config/constants.js';
 import { UP_BENEFITS, HOUSE_TYPES } from '../config/holdingOptions.js';
 import { text, toAscii, mobile } from '../utils/validate.js';
 import { VErr, need, opt, digits, money } from '../utils/cert.js';
+import { getConfig, moderatorBilling } from '../services/billing.js';
 
 // ডিজিটাল হোল্ডিং নম্বর।
 //  দেখা/প্রিন্ট: Super Admin, Admin, Moderator, Printer | যোগ/এডিট: Printer বাদে বাকি ৩ জন | ডিলিট: শুধু Super Admin, Admin
+export const NATURAL_HOLDING_SORT = `ARRAY(SELECT LEFT(x, 15)::bigint FROM regexp_split_to_table(holding_no, '\\D+') AS x WHERE x <> '')`;
+
 const router = Router();
 router.use(authenticate, requirePage('holdings'));
 const EDITORS = ['super_admin', 'admin', 'moderator'];
@@ -16,7 +19,7 @@ const PAGE_SIZE = 20;
 
 const COLS = `id, holding_no, owner_name, father_name, mother_name, nid, mobile, ward_no, village, family_members,
   permanent_address, up_benefit, land_area, house_type, occupation, annual_income::float8 AS annual_income,
-  annual_tax::float8 AS annual_tax, surveyor_name, note, created_at`;
+  annual_tax::float8 AS annual_tax, surveyor_name, note, created_at, public_key`;
 
 const FIELDS = [
   ['holding_no', 'holdingNo'], ['owner_name', 'ownerName'], ['father_name', 'fatherName'], ['mother_name', 'motherName'],
@@ -26,12 +29,14 @@ const FIELDS = [
   ['note', 'note'],
 ];
 
+export const holdingShape = (r) => shape(r);
+export const HOLDING_COLS = () => COLS;
 const shape = (r) => ({
   id: r.id, holdingNo: r.holding_no, ownerName: r.owner_name, fatherName: r.father_name || '', motherName: r.mother_name || '',
   nid: r.nid || '', mobile: r.mobile || '', wardNo: r.ward_no, village: r.village || '', familyMembers: r.family_members,
   permanentAddress: r.permanent_address || '', upBenefit: r.up_benefit || UP_BENEFITS[0], landArea: r.land_area || '',
   houseType: r.house_type || '', occupation: r.occupation || '', annualIncome: r.annual_income ?? 0, annualTax: r.annual_tax ?? 0,
-  surveyorName: r.surveyor_name || '', note: r.note || '', createdAt: r.created_at,
+  surveyorName: r.surveyor_name || '', note: r.note || '', createdAt: r.created_at, publicKey: r.public_key,
 });
 
 function parse(b) {
@@ -101,8 +106,13 @@ router.get('/', async (req, res, next) => {
     const scopeVals = isMod(req) ? [req.user.id] : [];
     const total = (await pool.query(`SELECT COUNT(*)::int AS n FROM holdings WHERE ${where}`, vals)).rows[0].n;
     const grandTotal = q ? (await pool.query(`SELECT COUNT(*)::int AS n FROM holdings WHERE ${scope}`, scopeVals)).rows[0].n : total;
+    // সর্ট: তারিখ অনুযায়ী (নতুন যোগ) বা হোল্ডিং নম্বর অনুযায়ী (03/264 < 389 — সংখ্যার হিসাবে)
+    const dir = req.query.order === 'asc' ? 'ASC' : 'DESC';
+    const orderBy = req.query.sort === 'holding'
+      ? `${NATURAL_HOLDING_SORT} ${dir}, holding_no ${dir}, id ${dir}`
+      : `created_at ${dir}, id ${dir}`;
     const { rows } = await pool.query(
-      `SELECT ${COLS} FROM holdings WHERE ${where} ORDER BY id DESC LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`, vals
+      `SELECT ${COLS} FROM holdings WHERE ${where} ORDER BY ${orderBy} LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`, vals
     );
     const items = rows.map(shape);
 
@@ -118,7 +128,12 @@ router.get('/', async (req, res, next) => {
         if (st?.[e.doc]) st[e.doc][e.action] = e.n;
       }
     }
-    res.json({ items, total, grandTotal, page, pageSize: PAGE_SIZE, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) });
+    let billing = null;
+    if (isMod(req)) {
+      const b = await moderatorBilling(req.user.id);
+      billing = { blocked: b.blocked, previousDue: b.previousDue, totalDue: b.totalDue };
+    }
+    res.json({ items, total, grandTotal, billing, page, pageSize: PAGE_SIZE, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)) });
   } catch (err) { next(err); }
 });
 
@@ -139,12 +154,24 @@ router.post('/', requireRoles(...EDITORS), async (req, res, next) => {
     return next(err);
   }
   try {
+    // মডারেটর: আগের দিনের পেমেন্ট অনুমোদিত না হলে নতুন এন্ট্রি বন্ধ; এন্ট্রির চার্জ এখনকার রেটে ঠিক হয়
+    let fee = null;
+    if (isMod(req)) {
+      const b = await moderatorBilling(req.user.id);
+      if (b.previousDue > 0) {
+        return res.status(403).json({
+          code: 'PAYMENT_DUE', previousDue: b.previousDue,
+          message: `আগের দিনের ৳${b.previousDue} পেমেন্ট বাকি আছে। পেমেন্ট সম্পূর্ণ (অনুমোদিত) না হওয়া পর্যন্ত নতুন হোল্ডিং যোগ করা যাবে না।`,
+        });
+      }
+      fee = (await getConfig()).entryFee;
+    }
     const cols = FIELDS.map(([c]) => c);
     const vals = FIELDS.map(([, k]) => (k === 'note' ? v[k] || null : v[k]));
-    vals.push(req.user.id);
+    vals.push(fee, req.user.id);
     const marks = vals.map((_, i) => `$${i + 1}`).join(', ');
     const { rows } = await pool.query(
-      `INSERT INTO holdings (${cols.join(', ')}, created_by) VALUES (${marks}) RETURNING ${COLS}`, vals
+      `INSERT INTO holdings (${cols.join(', ')}, entry_fee, created_by) VALUES (${marks}) RETURNING ${COLS}`, vals
     );
     res.status(201).json({ item: shape(rows[0]) });
   } catch (err) {

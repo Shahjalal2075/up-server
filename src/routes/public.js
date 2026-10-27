@@ -2,6 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { pool } from '../db.js';
 import { loadSite } from './site.js';
+import { HOLDING_COLS, holdingShape } from './holdings.js';
 
 const router = Router();
 router.use(rateLimit({ windowMs: 60 * 1000, max: 120, standardHeaders: true, legacyHeaders: false }));
@@ -83,6 +84,17 @@ router.get('/verify/warish/:no', async (req, res, next) => {
     );
     if (!rows[0]) return res.status(404).json({ valid: false });
     res.json({ valid: true, certNo: no, deceasedName: rows[0].deceased_name, applicantName: rows[0].applicant_name, issuedAt: rows[0].created_at });
+  } catch (err) { next(err); }
+});
+
+// হোল্ডিং সনদ/প্লেটের QR: অনুমান-অযোগ্য key দিয়ে হোল্ডিংয়ের সনদ (সনদে যা ছাপা হয় তা-ই) দেখা
+router.get('/holding/:key', async (req, res, next) => {
+  try {
+    const key = String(req.params.key || '');
+    if (!/^[a-f0-9]{32}$/.test(key)) return res.status(404).json({ message: 'হোল্ডিং খুঁজে পাওয়া যায়নি।' });
+    const { rows } = await pool.query(`SELECT ${HOLDING_COLS()} FROM holdings WHERE public_key = $1 AND deleted_at IS NULL`, [key]);
+    if (!rows[0]) return res.status(404).json({ message: 'হোল্ডিং খুঁজে পাওয়া যায়নি।' });
+    res.json({ item: holdingShape(rows[0]) });
   } catch (err) { next(err); }
 });
 

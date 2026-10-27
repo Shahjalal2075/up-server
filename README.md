@@ -107,3 +107,13 @@ Holding no unique (active row-er moddhe). **`npm run db:init` abar chalao** (hol
 `GET /api/dashboard/stats` (Super Admin, Admin, Accounting) · `/my-activity[?date=]` (Moderator) · `/team?from=&to=&sort=count|name|recent&order=asc|desc` (Super Admin, Admin) · `/printer` (Printer)
 Holdings: Moderator shudhu `created_by = nijer id` row dekhe. Print/download count: `POST /api/holdings/:id/events` → `holding_events` table.
 Din-er hishab Asia/Dhaka time-e. **`npm run db:init` abar chalao** (holding_events table).
+
+## Payments API (`/api/payments`)
+`GET/PUT /config` (চার্জ + বিকাশ/নগদ নম্বর; PUT: Accounting/Admin/Super Admin) · `GET /my`, `POST /` (Moderator) · `GET /?status=&q=&page=`, `PATCH /:id/review` (শুধু Accounting) · `GET /accounts`
+Billing logic: `src/services/billing.js` (FIFO). Holding POST (moderator): `entry_fee` set hoy, ager din-er bokeya thakle 403 `PAYMENT_DUE`.
+**`npm run db:init` abar chalao** (`moderator_payments` table + `holdings.entry_fee`). Prothome **পেমেন্ট সেটিংস**-e charge ar bKash/Nagad number set koro.
+
+## Tax, Expenses
+`/api/tax`: `GET /summary`, `/search?q=`, `/history?from&to&q&sort=date|holding&order&page`, `POST /collect {holdingId, paidOn}` · `/api/expenses`: `GET /` (+summary, daily, weekly), `POST /`, `DELETE /:id`, `GET /moderators`
+Public: `GET /api/public/holding/:key` (QR → holding sonod). Admin dashboard stats ekhon `tax_collections` theke (dhoryo = annual_tax × bochor).
+**`npm run db:init` abar chalao** (tax_collections, moderator_expenses, holdings.public_key).
