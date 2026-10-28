@@ -117,3 +117,5 @@ Billing logic: `src/services/billing.js` (FIFO). Holding POST (moderator): `entr
 `/api/tax`: `GET /summary`, `/search?q=`, `/history?from&to&q&sort=date|holding&order&page`, `POST /collect {holdingId, paidOn}` · `/api/expenses`: `GET /` (+summary, daily, weekly), `POST /`, `DELETE /:id`, `GET /moderators`
 Public: `GET /api/public/holding/:key` (QR → holding sonod). Admin dashboard stats ekhon `tax_collections` theke (dhoryo = annual_tax × bochor).
 **`npm run db:init` abar chalao** (tax_collections, moderator_expenses, holdings.public_key).
+
+`db:init` abar chalao: ইউনিয়নের নাম বদল (settings-e) ar `logo` setting-er jonno.

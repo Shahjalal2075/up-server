@@ -17,7 +17,7 @@ function validDate(v) {
 }
 
 // ---------- Super Admin / Admin / Accounting: ট্যাক্স ও হোল্ডিংয়ের মোট হিসাব ----------
-router.get('/stats', requireRoles('super_admin', 'admin', 'accounting'), async (_req, res, next) => {
+router.get('/stats', requireRoles('super_admin', 'admin'), async (_req, res, next) => {
   try {
     // ধার্য = প্রতি হোল্ডিংয়ের বার্ষিক কর × এন্ট্রির বছর থেকে এ বছর পর্যন্ত বছর; আদায় = tax_collections
     const cy = Number(todayStr().slice(0, 4));

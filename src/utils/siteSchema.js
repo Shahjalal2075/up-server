@@ -24,6 +24,13 @@ const email = (v) => {
   return s;
 };
 
+const logo = (v) => {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  if (!/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(s) || s.length > 250000) throw new VErr('লোগো সঠিক নয় বা অনেক বড়। ছোট ছবি আপলোড করুন।');
+  return s;
+};
+
 const icon = (v) => (ICON_KEYS.includes(v) ? v : 'Landmark');
 
 const obj = (v, label) => {
@@ -58,6 +65,7 @@ export function sanitizeSite(b) {
   const pl = obj(b.plate ?? {}, 'নম্বর প্লেট');
 
   return {
+    logo: logo(b.logo),
     unionName: str(b.unionName, 'ইউনিয়নের নাম', 100, { required: true }),
     heroEyebrow: str(b.heroEyebrow, 'ব্যানারের ছোট লেখা', 60),
     tagline: str(b.tagline, 'ট্যাগলাইন', 250, { required: true }),

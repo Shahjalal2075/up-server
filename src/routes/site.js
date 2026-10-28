@@ -30,7 +30,9 @@ export async function loadSite() {
   if (OLD.test(site.certificate?.verifyUrl || '')) site.certificate.verifyUrl = '';
   if (OLD.test(site.plate?.website || '')) site.plate.website = '';
   if (m.union_name) site.unionName = m.union_name;
-  return site;
+  if (site.contact?.email === 'bahirdiamansa.up@gmail.com') site.contact.email = '';
+  // আগের নাম (বাহিরদিয়া মানসা) কোথাও থেকে গেলে নতুন নামে বদলে দিই
+  return JSON.parse(JSON.stringify(site).replaceAll('৫নং বাহিরদিয়া মানসা ইউনিয়ন পরিষদ', '৩নং পিলজংগ ইউনিয়ন পরিষদ').replaceAll('বাহিরদিয়া-মানসা', 'পিলজংগ'));
 }
 
 const router = Router();

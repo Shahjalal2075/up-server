@@ -8,7 +8,8 @@ export const ICON_KEYS = [
 ];
 
 export const SITE_DEFAULTS = {
-  unionName: '৫নং বাহিরদিয়া মানসা ইউনিয়ন পরিষদ',
+  logo: '', // ফাঁকা = ডিফল্ট লোগো (src/assets/logo.jpg); ইউপি সেটিংস থেকে আপলোড করলে ছোট করা JPEG data URL
+  unionName: '৩নং পিলজংগ ইউনিয়ন পরিষদ',
   heroEyebrow: 'ডিজিটাল ইউনিয়ন পরিষদ',
   tagline: 'ডিজিটাল নাগরিক সেবা, স্বচ্ছতা ও জবাবদিহিতা নিশ্চিতকরণে আমরা অঙ্গীকারবদ্ধ।',
 
@@ -17,7 +18,7 @@ export const SITE_DEFAULTS = {
     'অনলাইনে হোল্ডিং ট্যাক্স ও নাগরিক সেবার তথ্য সহজে যাচাই করুন।',
   ],
 
-  contact: { email: 'bahirdiamansa.up@gmail.com', phone: '', address: '' },
+  contact: { email: '', phone: '', address: '' },
 
   established: '০২/০৭/২০০৫',
   area: '১৬.৮৪ বর্গ কিঃমিঃ',
@@ -73,7 +74,7 @@ export const SITE_DEFAULTS = {
   certificate: {
     upazila: 'ফকিরহাট',
     district: 'বাগেরহাট',
-    unionShort: 'বাহিরদিয়া-মানসা',
+    unionShort: 'পিলজংগ',
     website: '', // ফাঁকা = এই সাইটের নিজের ঠিকানা বসে
     verifyUrl: '',
     statement: 'উক্ত {name} একজন কৃষিশিল্পী/কৃষক। ইহা আমার জানা মতে সত্য।',
@@ -99,7 +100,7 @@ export const SITE_DEFAULTS = {
     fire: 'ফায়ার সার্ভিস: ০১৯০১-০২২৭৮৮',
     health: 'স্বাস্থ্য: ০১৭৩০-০২৪৫৭১',
     electricity: 'বিদ্যুৎ: ০১৭৬৯-৪০০৮৪৬',
-    footer: 'নিয়মিত হোল্ডিং ট্যাক্স পরিশোধ করুন। পরিকল্পনায় : ৫নং বাহিরদিয়া মানসা ইউনিয়ন পরিষদ',
+    footer: 'নিয়মিত হোল্ডিং ট্যাক্স পরিশোধ করুন। পরিকল্পনায় : ৩নং পিলজংগ ইউনিয়ন পরিষদ',
     credit: '',
   },
 

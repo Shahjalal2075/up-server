@@ -14,7 +14,7 @@ const FULL = [ROLES.SUPER_ADMIN, ROLES.ADMIN];
 export const PAGE_ACCESS = {
   dashboard: ALL,
   holdings: [...FULL, ROLES.MODERATOR, ROLES.PRINTER],
-  'tax-collection': [...FULL, ROLES.ACCOUNTING],
+  'tax-collection': FULL, // শুধু Super Admin ও Admin
   'citizen-certificates': FULL,
   'trade-licenses': FULL,
   'warish-certificates': FULL,

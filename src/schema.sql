@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS settings (
 );
 
 INSERT INTO settings (key, value)
-VALUES ('union_name', '৫নং বাহিরদিয়া মানসা ইউনিয়ন পরিষদ')
+VALUES ('union_name', '৩নং পিলজংগ ইউনিয়ন পরিষদ')
 ON CONFLICT (key) DO NOTHING;
 
 -- গ্রাম ভিত্তিক তথ্য
@@ -323,3 +323,8 @@ CREATE TABLE IF NOT EXISTS moderator_expenses (
 );
 CREATE INDEX IF NOT EXISTS mod_exp_date_idx ON moderator_expenses (expense_date);
 CREATE INDEX IF NOT EXISTS mod_exp_mod_idx ON moderator_expenses (moderator_id);
+
+-- ইউনিয়নের নাম বদল: ৫নং বাহিরদিয়া মানসা → ৩নং পিলজংগ (আগে সেভ করা সেটিংসেও)
+UPDATE settings
+SET value = replace(replace(value, '৫নং বাহিরদিয়া মানসা ইউনিয়ন পরিষদ', '৩নং পিলজংগ ইউনিয়ন পরিষদ'), 'বাহিরদিয়া-মানসা', 'পিলজংগ')
+WHERE key IN ('union_name', 'site_content');
