@@ -328,3 +328,28 @@ CREATE INDEX IF NOT EXISTS mod_exp_mod_idx ON moderator_expenses (moderator_id);
 UPDATE settings
 SET value = replace(replace(value, '৫নং বাহিরদিয়া মানসা ইউনিয়ন পরিষদ', '৩নং পিলজংগ ইউনিয়ন পরিষদ'), 'বাহিরদিয়া-মানসা', 'পিলজংগ')
 WHERE key IN ('union_name', 'site_content');
+
+-- ---- মডারেটরের আয় (প্রতি এন্ট্রিতে reward) ও উত্তোলন; খরচে ঐচ্ছিক প্রাপক ----
+-- entry_reward: মডারেটর এন্ট্রি করার সময়ের reward (পুরনো এন্ট্রিতে NULL = আয় নেই)
+ALTER TABLE holdings ADD COLUMN IF NOT EXISTS entry_reward NUMERIC(10,2);
+
+CREATE TABLE IF NOT EXISTS moderator_withdrawals (
+  id           SERIAL PRIMARY KEY,
+  moderator_id INTEGER NOT NULL REFERENCES users(id),
+  amount       NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+  method       VARCHAR(10) NOT NULL CHECK (method IN ('bkash', 'nagad')),
+  number       VARCHAR(15) NOT NULL,              -- যে নম্বরে টাকা পাঠাতে হবে
+  status       VARCHAR(10) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  trx_id       VARCHAR(30),                       -- approve করার সময় অ্যাকাউন্টিং যে ট্রানজেকশন আইডি দেয়
+  note         TEXT,
+  reviewed_by  INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  reviewed_at  TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS mod_wd_user_idx ON moderator_withdrawals (moderator_id, status);
+CREATE INDEX IF NOT EXISTS mod_wd_status_idx ON moderator_withdrawals (status, created_at DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS mod_wd_trx_uq ON moderator_withdrawals (method, UPPER(trx_id)) WHERE trx_id IS NOT NULL;
+
+-- খরচ: মডারেটর বাছা ঐচ্ছিক; নিজে লেখা নামও দেওয়া যায়
+ALTER TABLE moderator_expenses ALTER COLUMN moderator_id DROP NOT NULL;
+ALTER TABLE moderator_expenses ADD COLUMN IF NOT EXISTS recipient_name VARCHAR(100);

@@ -88,24 +88,42 @@ const DUP = { message: 'এই হোল্ডিং নম্বরটি আ�
 const isMod = (req) => req.user.role === 'moderator';
 const ownerArg = (req) => (isMod(req) ? req.user.id : null); // moderator shudhu nijer add kora holding dekhe
 
+function validDate(v) {
+  const t = String(v || '');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(t)) return null;
+  const d = new Date(`${t}T00:00:00Z`);
+  return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === t ? t : null;
+}
+
+// তালিকা/বাল্ক-এর কমন ফিল্টার: স্কোপ (মডারেটর শুধু নিজেরটা) + সার্চ + যোগের তারিখ (ঢাকা সময়)
+function filtersFor(req) {
+  const q = toAscii(req.query.q || '').slice(0, 100);
+  const vals = [];
+  let scope = 'deleted_at IS NULL';
+  if (isMod(req)) { vals.push(req.user.id); scope += ` AND created_by = $${vals.length}`; }
+  const scopeVals = [...vals];
+  let where = scope;
+  if (q) {
+    vals.push(like(q));
+    const n = vals.length;
+    where += ` AND (holding_no ILIKE $${n} OR owner_name ILIKE $${n} OR village ILIKE $${n} OR father_name ILIKE $${n} OR mobile ILIKE $${n})`;
+  }
+  const from = validDate(req.query.from);
+  const to = validDate(req.query.to);
+  if (from) { vals.push(from); where += ` AND (created_at AT TIME ZONE 'Asia/Dhaka')::date >= $${vals.length}::date`; }
+  if (to) { vals.push(to); where += ` AND (created_at AT TIME ZONE 'Asia/Dhaka')::date <= $${vals.length}::date`; }
+  return { q, scope, scopeVals, where, vals };
+}
+
 const EMPTY_STATS = () => ({ certificate: { print: 0, download: 0 }, plate: { print: 0, download: 0 } });
 
 router.get('/', async (req, res, next) => {
   try {
-    const q = toAscii(req.query.q || '').slice(0, 100);
     const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
-    const vals = [];
-    let scope = 'deleted_at IS NULL';
-    if (isMod(req)) { vals.push(req.user.id); scope += ` AND created_by = $${vals.length}`; }
-    let where = scope;
-    if (q) {
-      vals.push(like(q));
-      const n = vals.length;
-      where += ` AND (holding_no ILIKE $${n} OR owner_name ILIKE $${n} OR village ILIKE $${n} OR father_name ILIKE $${n} OR mobile ILIKE $${n})`;
-    }
-    const scopeVals = isMod(req) ? [req.user.id] : [];
+    const { q, scope, scopeVals, where, vals } = filtersFor(req);
+    const filtered = Boolean(q || validDate(req.query.from) || validDate(req.query.to));
     const total = (await pool.query(`SELECT COUNT(*)::int AS n FROM holdings WHERE ${where}`, vals)).rows[0].n;
-    const grandTotal = q ? (await pool.query(`SELECT COUNT(*)::int AS n FROM holdings WHERE ${scope}`, scopeVals)).rows[0].n : total;
+    const grandTotal = filtered ? (await pool.query(`SELECT COUNT(*)::int AS n FROM holdings WHERE ${scope}`, scopeVals)).rows[0].n : total;
     // সর্ট: তারিখ অনুযায়ী (নতুন যোগ) বা হোল্ডিং নম্বর অনুযায়ী (03/264 < 389 — সংখ্যার হিসাবে)
     const dir = req.query.order === 'asc' ? 'ASC' : 'DESC';
     const orderBy = req.query.sort === 'holding'
@@ -137,6 +155,48 @@ router.get('/', async (req, res, next) => {
   } catch (err) { next(err); }
 });
 
+// ---------- বাল্ক ডাউনলোডের জন্য: ফিল্টার অনুযায়ী সব আইডি, আইডি ধরে পূর্ণ তথ্য, এবং একসাথে ইভেন্ট ----------
+const MAX_IDS = 1000;
+const idList = (v, max) => (Array.isArray(v) ? [...new Set(v.map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, max) : []);
+
+router.get('/ids', async (req, res, next) => {
+  try {
+    const { where, vals } = filtersFor(req);
+    const total = (await pool.query(`SELECT COUNT(*)::int AS n FROM holdings WHERE ${where}`, vals)).rows[0].n;
+    const { rows } = await pool.query(
+      `SELECT id FROM holdings WHERE ${where} ORDER BY ${NATURAL_HOLDING_SORT} ASC, holding_no ASC, id ASC LIMIT ${MAX_IDS}`, vals
+    );
+    res.json({ ids: rows.map((r) => r.id), total, capped: total > MAX_IDS, max: MAX_IDS });
+  } catch (err) { next(err); }
+});
+
+router.post('/bulk', async (req, res, next) => {
+  try {
+    const ids = idList(req.body?.ids, 60);
+    if (!ids.length) return res.json({ items: [] });
+    const { rows } = await pool.query(
+      `SELECT ${COLS} FROM holdings WHERE id = ANY($1::int[]) AND deleted_at IS NULL AND ($2::int IS NULL OR created_by = $2)
+       ORDER BY array_position($1::int[], id)`, [ids, ownerArg(req)]
+    );
+    res.json({ items: rows.map(shape) });
+  } catch (err) { next(err); }
+});
+
+router.post('/events/bulk', async (req, res, next) => {
+  try {
+    const ids = idList(req.body?.ids, MAX_IDS);
+    const doc = String(req.body?.doc || '');
+    const action = String(req.body?.action || '');
+    if (!ids.length || !['certificate', 'plate'].includes(doc) || !['print', 'download'].includes(action)) return res.status(400).json({ message: 'ভুল অনুরোধ।' });
+    const { rowCount } = await pool.query(
+      `INSERT INTO holding_events (holding_id, doc, action, user_id)
+       SELECT id, $2, $3, $4 FROM holdings WHERE id = ANY($1::int[]) AND deleted_at IS NULL AND ($5::int IS NULL OR created_by = $5)`,
+      [ids, doc, action, req.user.id, ownerArg(req)]
+    );
+    res.status(201).json({ ok: true, count: rowCount });
+  } catch (err) { next(err); }
+});
+
 router.get('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
@@ -156,6 +216,7 @@ router.post('/', requireRoles(...EDITORS), async (req, res, next) => {
   try {
     // মডারেটর: আগের দিনের পেমেন্ট অনুমোদিত না হলে নতুন এন্ট্রি বন্ধ; এন্ট্রির চার্জ এখনকার রেটে ঠিক হয়
     let fee = null;
+    let reward = null;
     if (isMod(req)) {
       const b = await moderatorBilling(req.user.id);
       if (b.previousDue > 0) {
@@ -164,14 +225,16 @@ router.post('/', requireRoles(...EDITORS), async (req, res, next) => {
           message: `আগের দিনের ৳${b.previousDue} পেমেন্ট বাকি আছে। পেমেন্ট সম্পূর্ণ (অনুমোদিত) না হওয়া পর্যন্ত নতুন হোল্ডিং যোগ করা যাবে না।`,
         });
       }
-      fee = (await getConfig()).entryFee;
+      const cfg = await getConfig();
+      fee = cfg.entryFee;
+      reward = cfg.rewardPerEntry; // মডারেটরের আয় (এন্ট্রির সময়ের রেটে ঠিক হয়)
     }
     const cols = FIELDS.map(([c]) => c);
     const vals = FIELDS.map(([, k]) => (k === 'note' ? v[k] || null : v[k]));
-    vals.push(fee, req.user.id);
+    vals.push(fee, reward, req.user.id);
     const marks = vals.map((_, i) => `$${i + 1}`).join(', ');
     const { rows } = await pool.query(
-      `INSERT INTO holdings (${cols.join(', ')}, entry_fee, created_by) VALUES (${marks}) RETURNING ${COLS}`, vals
+      `INSERT INTO holdings (${cols.join(', ')}, entry_fee, entry_reward, created_by) VALUES (${marks}) RETURNING ${COLS}`, vals
     );
     res.status(201).json({ item: shape(rows[0]) });
   } catch (err) {

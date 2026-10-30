@@ -28,6 +28,7 @@ export const PAGE_ACCESS = {
   'moderator-accounts': [ROLES.ACCOUNTING],
   'payment-approvals': [ROLES.ACCOUNTING],
   'payment-settings': [ROLES.ACCOUNTING],
+  'withdraw-requests': [ROLES.ACCOUNTING],
 };
 
 export const canAccess = (role, page) => !!PAGE_ACCESS[page]?.includes(role);

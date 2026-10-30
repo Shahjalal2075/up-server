@@ -14,6 +14,8 @@ export async function getConfig() {
   try { saved = JSON.parse(rows[0]?.value || '{}'); } catch { /* default */ }
   return {
     entryFee: Number.isFinite(saved.entryFee) ? saved.entryFee : 150,
+    rewardPerEntry: Number.isFinite(saved.rewardPerEntry) ? saved.rewardPerEntry : 17, // মডারেটর প্রতি এন্ট্রিতে যা পায়
+    withdrawEnabled: saved.withdrawEnabled === true,                                   // অ্যাকাউন্টিং চালু করলে তবেই উত্তোলন
     accounts: Array.isArray(saved.accounts) ? saved.accounts : [],
   };
 }
@@ -83,4 +85,19 @@ export async function allBilling() {
     const pay = Object.fromEntries(p.rows.filter((r) => r.mid === m.id).map((r) => [r.status, r.s]));
     return { id: m.id, name: m.full_name || m.username, username: m.username, isActive: m.is_active, ...buildBilling(days, pay.approved || 0, pay.pending || 0) };
   });
+}
+
+// ---------- মডারেটরের আয় ও উত্তোলন ----------
+// balance (এখন তোলা যাবে) = মোট আয় − অনুমোদিত উত্তোলন − অপেক্ষমাণ উত্তোলন
+export async function moderatorEarnings(id, db = pool) {
+  const [e, w] = await Promise.all([
+    db.query('SELECT COALESCE(SUM(entry_reward), 0)::float8 AS s, COUNT(*) FILTER (WHERE entry_reward IS NOT NULL)::int AS n FROM holdings WHERE created_by = $1 AND deleted_at IS NULL', [id]),
+    db.query('SELECT status, COALESCE(SUM(amount), 0)::float8 AS s FROM moderator_withdrawals WHERE moderator_id = $1 GROUP BY status', [id]),
+  ]);
+  const by = Object.fromEntries(w.rows.map((r) => [r.status, r.s]));
+  const earned = round2(e.rows[0].s);
+  const withdrawn = round2(by.approved || 0);
+  const pending = round2(by.pending || 0);
+  const balance = round2(earned - withdrawn - pending);
+  return { earned, entries: e.rows[0].n, withdrawn, pending, balance, available: Math.max(0, balance) };
 }

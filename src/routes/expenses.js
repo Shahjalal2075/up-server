@@ -43,8 +43,8 @@ router.get('/', async (req, res, next) => {
     const agg = (await pool.query(`SELECT COUNT(*)::int AS n, COALESCE(SUM(e.amount), 0)::float8 AS s FROM moderator_expenses e WHERE ${where}`, vals)).rows[0];
     const list = await pool.query(
       `SELECT e.id, e.amount::float8 AS amount, e.note, to_char(e.expense_date, 'YYYY-MM-DD') AS expense_date, e.created_at,
-              COALESCE(m.full_name, m.username) AS moderator_name, COALESCE(c.full_name, c.username) AS created_by_name
-       FROM moderator_expenses e JOIN users m ON m.id = e.moderator_id LEFT JOIN users c ON c.id = e.created_by
+              COALESCE(m.full_name, m.username) AS moderator_name, e.recipient_name, COALESCE(c.full_name, c.username) AS created_by_name
+       FROM moderator_expenses e LEFT JOIN users m ON m.id = e.moderator_id LEFT JOIN users c ON c.id = e.created_by
        WHERE ${where} ORDER BY e.expense_date DESC, e.id DESC LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`, vals
     );
     // দৈনিক ও সাপ্তাহিক (শনি–শুক্র) হিসাব — ফিল্টার মেনে
@@ -67,7 +67,7 @@ router.get('/', async (req, res, next) => {
 
     res.json({
       today, cards, total: agg.s, count: agg.n, page, pages: Math.max(1, Math.ceil(agg.n / PAGE_SIZE)),
-      items: list.rows.map((r) => ({ id: r.id, amount: r.amount, note: r.note, date: r.expense_date, createdAt: r.created_at, moderatorName: r.moderator_name, createdBy: r.created_by_name || '' })),
+      items: list.rows.map((r) => ({ id: r.id, amount: r.amount, note: r.note, date: r.expense_date, createdAt: r.created_at, moderatorName: r.moderator_name || '', recipientName: r.recipient_name || '', createdBy: r.created_by_name || '' })),
       daily: daily.rows.map((r) => ({ date: r.d, count: r.n, total: r.s })),
       weekly: weekly.rows.map((r) => ({ weekStart: r.ws, count: r.n, total: r.s })),
     });
@@ -76,11 +76,18 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const moderatorId = Number(req.body?.moderatorId);
-    const m = Number.isInteger(moderatorId)
-      ? (await pool.query("SELECT id FROM users WHERE id = $1 AND role = 'moderator' AND deleted_at IS NULL", [moderatorId])).rowCount
-      : 0;
-    if (!m) throw new VErr('মডারেটর নির্বাচন করুন।');
+    // কাকে দিয়েছে: মডারেটর বাছা বা নিজে লেখা নাম — দুটোই ঐচ্ছিক
+    let moderatorId = null;
+    const rawMod = req.body?.moderatorId;
+    if (rawMod !== undefined && rawMod !== null && rawMod !== '') {
+      moderatorId = Number(rawMod);
+      const m = Number.isInteger(moderatorId)
+        ? (await pool.query("SELECT id FROM users WHERE id = $1 AND role = 'moderator' AND deleted_at IS NULL", [moderatorId])).rowCount
+        : 0;
+      if (!m) throw new VErr('মডারেটর নির্বাচন ঠিক নয়।');
+    }
+    const recipientName = String(req.body?.recipientName ?? '').trim().replace(/\s+/g, ' ');
+    if (recipientName.length > 100) throw new VErr('নাম সর্বোচ্চ ১০০ অক্ষরের হতে পারে।');
     const amount = money(req.body?.amount, 'টাকার পরিমাণ');
     if (amount <= 0) throw new VErr('টাকার পরিমাণ ০-এর বেশি দিন।');
     const note = need(req.body?.note, 'বিবরণ/মন্তব্য', 300);
@@ -90,8 +97,8 @@ router.post('/', async (req, res, next) => {
     if (!date || date > today || date < '2000-01-01') throw new VErr('তারিখ সঠিক নয় (আজকের পরের তারিখ দেওয়া যায় না)।');
 
     const { rows } = await pool.query(
-      'INSERT INTO moderator_expenses (moderator_id, amount, note, expense_date, created_by) VALUES ($1, $2, $3, $4, $5) RETURNING id',
-      [moderatorId, amount, note, date, req.user.id]
+      'INSERT INTO moderator_expenses (moderator_id, recipient_name, amount, note, expense_date, created_by) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id',
+      [moderatorId, recipientName || null, amount, note, date, req.user.id]
     );
     res.status(201).json({ id: rows[0].id });
   } catch (err) {

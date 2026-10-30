@@ -4,7 +4,7 @@ import { pool } from '../db.js';
 import { authenticate, requireRoles } from '../middleware/auth.js';
 import { mobile, text, toAscii } from '../utils/validate.js';
 import { VErr, money } from '../utils/cert.js';
-import { addDays, allBilling, getConfig, moderatorBilling, round2, saveConfig, todayStr } from '../services/billing.js';
+import { addDays, allBilling, getConfig, moderatorBilling, moderatorEarnings, round2, saveConfig, todayStr } from '../services/billing.js';
 
 const router = Router();
 router.use(authenticate);
@@ -24,7 +24,10 @@ router.get('/config', requireRoles('moderator', ...STAFF), async (req, res, next
   try {
     const cfg = await getConfig();
     // মডারেটর শুধু সক্রিয় নম্বর দেখে
-    res.json({ entryFee: cfg.entryFee, accounts: req.user.role === 'moderator' ? cfg.accounts.filter((a) => a.active) : cfg.accounts });
+    res.json({
+      entryFee: cfg.entryFee, rewardPerEntry: cfg.rewardPerEntry, withdrawEnabled: cfg.withdrawEnabled,
+      accounts: req.user.role === 'moderator' ? cfg.accounts.filter((a) => a.active) : cfg.accounts,
+    });
   } catch (err) { next(err); }
 });
 
@@ -32,6 +35,8 @@ router.put('/config', requireRoles(...STAFF), async (req, res, next) => {
   try {
     const entryFee = money(req.body?.entryFee, 'প্রতি ডাটার চার্জ');
     if (entryFee <= 0) throw new VErr('প্রতি ডাটার চার্জ ০-এর বেশি হতে হবে।');
+    const rewardPerEntry = money(req.body?.rewardPerEntry, 'প্রতি ডাটায় মডারেটরের আয়');
+    const withdrawEnabled = req.body?.withdrawEnabled === true;
     if (!Array.isArray(req.body?.accounts) || req.body.accounts.length > 10) throw new VErr('নম্বরের তালিকা ভুল বা অনেক বড়।');
     const seen = new Set();
     const accounts = req.body.accounts.map((a) => {
@@ -46,8 +51,8 @@ router.put('/config', requireRoles(...STAFF), async (req, res, next) => {
       const id = /^[a-f0-9]{8}$/.test(a?.id || '') ? a.id : crypto.randomBytes(4).toString('hex');
       return { id, method, number, label, active: a?.active !== false };
     });
-    await saveConfig({ entryFee, accounts });
-    res.json({ entryFee, accounts });
+    await saveConfig({ entryFee, rewardPerEntry, withdrawEnabled, accounts });
+    res.json({ entryFee, rewardPerEntry, withdrawEnabled, accounts });
   } catch (err) {
     if (err instanceof VErr) return res.status(400).json({ message: err.message });
     next(err);
@@ -194,6 +199,109 @@ router.get('/accounts', requireRoles(...STAFF), async (_req, res, next) => {
       },
       moderators,
     });
+  } catch (err) { next(err); }
+});
+
+// ---------- মডারেটরের আয়, উত্তোলন (withdraw) ----------
+const wdShape = (r) => ({
+  id: r.id, amount: r.amount, method: r.method, number: r.number, status: r.status, trxId: r.trx_id || '', note: r.note || '',
+  createdAt: r.created_at, reviewedAt: r.reviewed_at,
+  ...(r.moderator_name !== undefined ? { moderatorId: r.moderator_id, moderatorName: r.moderator_name, moderatorUsername: r.moderator_username, reviewerName: r.reviewer_name || '' } : {}),
+});
+const WD_COLS = 'w.id, w.moderator_id, w.amount::float8 AS amount, w.method, w.number, w.status, w.trx_id, w.note, w.created_at, w.reviewed_at';
+
+router.get('/earnings', requireRoles('moderator'), async (req, res, next) => {
+  try {
+    const [e, cfg, h] = await Promise.all([
+      moderatorEarnings(req.user.id), getConfig(),
+      pool.query(`SELECT ${WD_COLS} FROM moderator_withdrawals w WHERE w.moderator_id = $1 ORDER BY w.id DESC LIMIT 30`, [req.user.id]),
+    ]);
+    res.json({ reward: cfg.rewardPerEntry, enabled: cfg.withdrawEnabled, ...e, history: h.rows.map(wdShape) });
+  } catch (err) { next(err); }
+});
+
+router.post('/withdrawals', requireRoles('moderator'), async (req, res, next) => {
+  const client = await pool.connect();
+  try {
+    const cfg = await getConfig();
+    if (!cfg.withdrawEnabled) throw new VErr('উত্তোলন এখন বন্ধ আছে। অ্যাকাউন্টিং চালু করলে টাকা তুলতে পারবেন।');
+    const method = text(req.body?.method);
+    if (!METHODS.includes(method)) throw new VErr('বিকাশ বা নগদ নির্বাচন করুন।');
+    const number = mobile(req.body?.number);
+    if (!number) throw new VErr('যে নম্বরে টাকা নেবেন সেটি সঠিক নয় (যেমন: 01712345678)।');
+    const amount = money(req.body?.amount, 'টাকার পরিমাণ');
+    if (amount <= 0) throw new VErr('টাকার পরিমাণ ০-এর বেশি দিন।');
+
+    await client.query('BEGIN');
+    await client.query('SELECT id FROM users WHERE id = $1 FOR UPDATE', [req.user.id]); // একই সময়ে দুই অনুরোধে বেশি তোলা আটকায়
+    const e = await moderatorEarnings(req.user.id, client);
+    if (amount > e.available + 0.001) {
+      await client.query('ROLLBACK');
+      throw new VErr(e.available > 0 ? `সর্বোচ্চ ৳${e.available} তোলা যাবে।` : 'আপনার তোলার মতো ব্যালেন্স নেই।');
+    }
+    const { rows } = await client.query(
+      'INSERT INTO moderator_withdrawals (moderator_id, amount, method, number) VALUES ($1, $2, $3, $4) RETURNING id', [req.user.id, amount, method, number]
+    );
+    await client.query('COMMIT');
+    res.status(201).json({ id: rows[0].id });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    if (err instanceof VErr) return res.status(400).json({ message: err.message });
+    next(err);
+  } finally {
+    client.release();
+  }
+});
+
+// অ্যাকাউন্টিং: উত্তোলন অনুরোধের তালিকা
+router.get('/withdrawals', requireRoles(...STAFF), async (req, res, next) => {
+  try {
+    const status = ['pending', 'approved', 'rejected'].includes(req.query.status) ? req.query.status : null;
+    const q = toAscii(req.query.q || '').slice(0, 60);
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
+    const vals = [];
+    let where = 'TRUE';
+    if (status) { vals.push(status); where += ` AND w.status = $${vals.length}`; }
+    if (q) {
+      vals.push(`%${q.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
+      where += ` AND (u.full_name ILIKE $${vals.length} OR u.username ILIKE $${vals.length} OR w.number ILIKE $${vals.length} OR w.trx_id ILIKE $${vals.length})`;
+    }
+    const join = 'FROM moderator_withdrawals w JOIN users u ON u.id = w.moderator_id LEFT JOIN users r ON r.id = w.reviewed_by';
+    const total = (await pool.query(`SELECT COUNT(*)::int AS n ${join} WHERE ${where}`, vals)).rows[0].n;
+    const { rows } = await pool.query(
+      `SELECT ${WD_COLS}, COALESCE(u.full_name, u.username) AS moderator_name, u.username AS moderator_username, COALESCE(r.full_name, r.username) AS reviewer_name
+       ${join} WHERE ${where} ORDER BY (w.status = 'pending') DESC, w.id DESC LIMIT ${PAGE_SIZE} OFFSET ${(page - 1) * PAGE_SIZE}`, vals
+    );
+    const c = Object.fromEntries((await pool.query('SELECT status, COUNT(*)::int AS n FROM moderator_withdrawals GROUP BY status')).rows.map((r) => [r.status, r.n]));
+    res.json({ items: rows.map(wdShape), total, page, pages: Math.max(1, Math.ceil(total / PAGE_SIZE)), counts: { pending: c.pending || 0, approved: c.approved || 0, rejected: c.rejected || 0 } });
+  } catch (err) { next(err); }
+});
+
+// approve করতে ট্রানজেকশন আইডি লাগে (অ্যাকাউন্টিং টাকা পাঠানোর পর); reject-এ কারণ লাগে
+router.patch('/withdrawals/:id/review', requireRoles(...STAFF), async (req, res, next) => {
+  try {
+    const id = Number(req.params.id);
+    const action = req.body?.action;
+    if (!Number.isInteger(id) || !['approve', 'reject'].includes(action)) return res.status(400).json({ message: 'ভুল অনুরোধ।' });
+    let trx = null;
+    let note = text(req.body?.note).slice(0, 300);
+    if (action === 'approve') {
+      trx = toAscii(req.body?.trxId).replace(/\s+/g, '').toUpperCase();
+      if (!/^[A-Z0-9]{6,30}$/.test(trx)) return res.status(400).json({ message: 'ট্রানজেকশন আইডি সঠিক নয় (শুধু ইংরেজি অক্ষর ও সংখ্যা)।' });
+    } else if (note.length < 3) {
+      return res.status(400).json({ message: 'বাতিলের কারণ লিখুন।' });
+    }
+    try {
+      const { rowCount } = await pool.query(
+        `UPDATE moderator_withdrawals SET status = $2, trx_id = $3, note = $4, reviewed_by = $5, reviewed_at = NOW()
+         WHERE id = $1 AND status = 'pending'`, [id, action === 'approve' ? 'approved' : 'rejected', trx, note || null, req.user.id]
+      );
+      if (!rowCount) return res.status(409).json({ message: 'এই অনুরোধ ইতিমধ্যে অনুমোদন বা বাতিল করা হয়েছে।' });
+    } catch (err) {
+      if (err.code === '23505') return res.status(409).json({ message: 'এই ট্রানজেকশন আইডি আগেই ব্যবহার হয়েছে।' });
+      throw err;
+    }
+    res.json({ ok: true });
   } catch (err) { next(err); }
 });
 

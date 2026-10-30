@@ -119,3 +119,8 @@ Public: `GET /api/public/holding/:key` (QR → holding sonod). Admin dashboard s
 **`npm run db:init` abar chalao** (tax_collections, moderator_expenses, holdings.public_key).
 
 `db:init` abar chalao: ইউনিয়নের নাম বদল (settings-e) ar `logo` setting-er jonno.
+
+## Earnings / Withdrawals / Bulk
+`/api/payments`: `GET /earnings`, `POST /withdrawals` (Moderator) · `GET /withdrawals`, `PATCH /withdrawals/:id/review {action, trxId|note}` (Accounting). Config-e `rewardPerEntry` (default 17) ar `withdrawEnabled` (default false).
+`/api/holdings`: `GET /?from&to`, `GET /ids`, `POST /bulk {ids}`, `POST /events/bulk {ids, doc, action}`.
+**`npm run db:init` abar chalao** (entry_reward, moderator_withdrawals, moderator_expenses.recipient_name).
